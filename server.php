@@ -18,21 +18,24 @@ function show_valet_404()
 }
 
 /**
- * @param $domain string Domain to filter
- *
- * @return string Filtered domain (without wildcard dns feature (xip.io/nip.io))
+ * Wildcard DNS providers are supported. Usage is simple: run "valet link <your-local-ip>"
+ * You may then reach your site by visiting http://your-local-ip.xip.io (or nip.io)
+ * Add additional providers in the 'wildcard_providers' array in config.json
  */
-function valet_support_wildcard_dns($domain)
+function valet_support_wildcard_dns($requestDomain, $valetConfig = null)
 {
-    if (in_array(substr($domain, -7), array('.xip.io', '.nip.io'), true)) {
-        // support only ip v4 for now
-        $domainPart = explode('.', $domain);
-        if (count($domainPart) > 6) {
-            $domain = implode('.', array_reverse(array_slice(array_reverse($domainPart), 6)));
-        }
-    }
+    $wildcardProviders = array_merge(array('xip.io', 'nip.io'), isset($valetConfig['wildcard_providers']) ? $valetConfig['wildcard_providers'] : []);
 
-    return $domain;
+    // return URL with provider TLD trimmed off
+    $filteredDomain = array_reduce($wildcardProviders, function ($carry, $provider) use ($requestDomain) {
+        $provider = trim($provider, '. ,');
+        if (preg_match('~(.*)(' . preg_quote('.' . $provider, '~') . ')$~', $requestDomain, $matches)) {
+            return $matches[1];
+        }
+        return $carry;
+    });
+
+    return $filteredDomain ?: $requestDomain;
 }
 
 /**
@@ -51,7 +54,7 @@ $uri = urldecode(
 
 $siteName = basename(
     // Filter host to support wildcard dns feature
-    valet_support_wildcard_dns($_SERVER['HTTP_HOST']),
+    valet_support_wildcard_dns($_SERVER['HTTP_HOST'], $valetConfig),
     '.'.$valetConfig['domain']
 );
 
