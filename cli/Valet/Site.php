@@ -422,6 +422,11 @@ class Site
         $this->cli->run(sprintf(
             'sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "%s"', $caPemPath
         ));
+
+        // @TODO: add to OpenSSL's trust chain:
+        // cp our generated .pem to /usr/local/etc/openssl@1.1/certs/LaravelValetCASelfSigned.pem
+        // then run: /usr/local/opt/openssl@1.1/bin/c_rehash
+        // And reverse it during uninstall (remove the file, and re-run c_rehash)
     }
 
     /**
@@ -435,6 +440,8 @@ class Site
         $this->cli->run(sprintf(
             'sudo security add-trusted-cert -d -r trustAsRoot -k /Library/Keychains/System.keychain "%s"', $crtPath
         ));
+
+        $this->trustForCurl($this->caPath());
     }
 
     /**
@@ -458,6 +465,8 @@ class Site
     function buildSecureNginxServer($url)
     {
         $path = $this->certificatesPath();
+
+        // @TODO - allow lookup of stubs in user's Valet directory, in case user wants to override the defaults (see #941)
 
         return str_replace(
             ['VALET_HOME_PATH', 'VALET_SERVER_PATH', 'VALET_STATIC_PREFIX', 'VALET_SITE', 'VALET_CERT', 'VALET_KEY'],
@@ -519,6 +528,9 @@ class Site
             warning('We were not succesful in unsecuring the following sites:');
             table(['Site', 'SSL', 'URL', 'Path'], $remaining->toArray());
         }
+
+        $this->untrustForCurl($this->caPath());
+
         info('unsecure --all was successful.');
     }
 
@@ -550,5 +562,39 @@ class Site
     function certificatesPath()
     {
         return VALET_HOME_PATH.'/Certificates';
+    }
+
+    function trustForCurl($path)
+    {
+        /**
+         * @TODO - ensure the ~/.curlrc file contains capath=certificate-dir
+         * eg: cacert=/Users/USERNAME/.config/valet/CA/LaravelValetCASelfSigned.pem
+         * NOTE: it must be the fully qualified path. No relative paths or ~ allowed
+         *
+         * 
+         */
+    }
+    function untrustForCurl($path)
+    {
+        // @TODO - delete the entry
+        /**
+         * @TODO - ensure the ~/.curlrc file contains capath=certificate-dir
+         * eg: cacert=/Users/USERNAME/.config/valet/CA/LaravelValetCASelfSigned.pem
+         * NOTE: it must be the fully qualified path. No relative paths or ~ allowed
+         */
+    }
+
+    /**
+     * Check and optionally repair Valet's Site configs.
+     * @param  boolean $repair
+     */
+    function checkConfiguration($repair = false)
+    {
+        /**
+         * @TODO -- work out a way to inspect integrity of site and certificate configs
+         * - integrity of certificates and paths
+         * - check keychain?
+         * - check .curlrc file
+         */
     }
 }

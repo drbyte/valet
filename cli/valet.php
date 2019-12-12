@@ -46,7 +46,7 @@ if (is_dir(VALET_HOME_PATH)) {
 }
 
 /**
- * Install Valet and any required services.
+ * Install Valet, or re-install after upgrading related services or upgrading Valet
  */
 $app->command('install', function () {
     Nginx::stop();
@@ -60,6 +60,30 @@ $app->command('install', function () {
 
     output(PHP_EOL.'<info>Valet installed successfully!</info>');
 })->descriptions('Install the Valet services');
+
+/**
+ * Inspect conditions which may prevent Valet from operating normally
+ */
+$app->command('doctor [--fix]', function ($fix = null) use ($app, $version) {
+    output('<comment>Inspecting your Valet configuration. Please wait...</comment>');
+    info($app->getLongVersion());
+    Valet::checkVersionDetails($version);
+
+    if (! is_dir(VALET_HOME_PATH) && $fix) {
+        warning('You have not run `valet install` so we cannot automatically "fix" any issues found. The --fix parameter will be ignored during this inspection.');
+        $fix = false;
+    }
+
+    output(Valet::composerGlobalDiagnose());
+    Brew::checkConfiguration($fix);
+    DnsMasq::checkConfiguration($fix);
+    Nginx::checkConfiguration($fix);
+    PhpFpm::checkConfiguration($fix);
+    Site::checkConfiguration($fix);
+    Valet::checkSudoersSupport();
+
+    info('Valet inspection complete.');
+})->descriptions('Inspect this system for problems interfering with Valet.');
 
 /**
  * Most commands are available only if valet is installed.
@@ -432,7 +456,7 @@ You might also want to investigate your global Composer configs. Helpful command
     ]);
 
     /**
-     * Allow the user to change the version of php valet uses
+     * Allow the user to change the version of PHP valet uses.
      */
     $app->command('use phpVersion', function ($phpVersion) {
         PhpFpm::validateRequestedVersion($phpVersion);

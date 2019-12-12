@@ -136,7 +136,7 @@ class Nginx
     }
 
     /**
-     * Restart the Nginx service.
+     * Restart the Nginx service after checking the config files for errors.
      *
      * @return void
      */
@@ -169,5 +169,21 @@ class Nginx
         $this->brew->stopService(['nginx', 'nginx-full']);
         $this->brew->uninstallFormula('nginx nginx-full');
         $this->cli->quietly('rm -rf /usr/local/etc/nginx /usr/local/var/log/nginx');
+    }
+
+    /**
+     * Check and optionally repair Valet's Nginx config.
+     * @param  boolean $repair
+     */
+    function checkConfiguration($repair = false)
+    {
+        $this->brew->hasInstalledNginx();
+        $this->files->exists('/usr/local/etc/nginx/valet/valet.conf');
+        $this->files->exists('/usr/local/etc/nginx/fastcgi_params');
+        $this->files->exists(static::NGINX_CONF);
+        $this->lint();
+
+        // @TODO - Maybe: report what services are listening on ports 80 and 443? ie: what could be conflicting with nginx to prevent it responding
+        // @TODO - Maybe: report on any .conf files that don't contain the necessary php-fpm socket path (and aren't proxies)?
     }
 }

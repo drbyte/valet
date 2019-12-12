@@ -390,4 +390,16 @@ class Brew
             }
         );
     }
+
+    /**
+     * Check and optionally repair Valet's Homebrew config.
+     * @param  boolean $repair
+     */
+    function checkConfiguration($repair = false)
+    {
+        output($this->cli->runAsUser("brew list --versions | grep -E 'php(@\d\.\d)?\s|nginx|dnsmasq|mariadb|mysql|mailhog|openssl(@\d\..*)?\s'"));
+        output($this->cli->runAsUser('brew services list'));
+        output($this->cli->runAsUser('brew config'));
+        output($this->cli->runAsUser('brew doctor'));
+    }
 }

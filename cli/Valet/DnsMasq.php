@@ -141,7 +141,6 @@ class DnsMasq
     {
         $this->files->unlink($this->resolverPath.'/'.$oldTld);
         $this->files->unlink($this->dnsmasqUserConfigDir() . 'tld-' . $oldTld . '.conf');
-
         $this->install($newTld);
     }
 
@@ -153,5 +152,60 @@ class DnsMasq
     function dnsmasqUserConfigDir()
     {
         return $_SERVER['HOME'].'/.config/valet/dnsmasq.d/';
+    }
+    /**
+     * Check config for errors.
+     */
+    private function lint()
+    {
+        $this->cli->run(
+            '/usr/local/opt/dnsmasq/sbin/dnsmasq --test',
+            function ($exitCode, $outputMessage) {
+                throw new DomainException("Dnsmasq cannot start. Config errors: [$exitCode: $outputMessage].");
+            }
+        );
+    }
+
+    /**
+     * Check and optionally repair Valet's Dnsmasq config
+     * @param  boolean $repair
+     */
+    function checkConfiguration($repair = false)
+    {
+        $this->brew->installed('dnsmasq');
+
+        if (!$this->files->exists($this->dnsmasqMasterConfigFile)) {
+            output('<error>The master config file for dnsmasq could not be found: '.$this->dnsmasqMasterConfigFile.'</error>');
+        } else {
+            $contents = $this->files->get($this->dnsmasqMasterConfigFile);
+            // ensure the line we need to use is present, and uncomment it if needed
+            if (false === strpos($contents, 'conf-dir=/usr/local/etc/dnsmasq.d/,*.conf') || false !== strpos($contents, '#conf-dir=/usr/local/etc/dnsmasq.d/,*.conf')) {
+                output('<error>The /usr/local/etc/dnsmasq.conf file does not have a directive to load configs from the dnsmasq.d dir, or the line is commented out.</error>');
+            }
+        }
+        
+        $this->files->exists($this->dnsmasqSystemConfDir);
+        $this->files->exists($this->dnsmasqSystemConfDir . '/dnsmasq-valet.conf');
+        
+        $contents = $this->files->get($this->dnsmasqSystemConfDir . '/dnsmasq-valet.conf');
+        // TODO - test contents
+
+        $this->files->exists(VALET_HOME_PATH . '/dnsmasq.d');
+
+
+        $tld = $this->configuration->read()['tld'];
+        $tldConfigFile = $this->dnsmasqUserConfigDir() . 'tld-' . $tld . '.conf';
+        $this->files->exists($tldConfigFile);
+
+
+        if ($this->files->exists($this->resolverPath.'/'.$tld)) {
+            output('<info>Resolver path for '.$tld.' is found.</info>');
+        } else {
+            output('<error>Could not find Resolver path file for the current TLD: '.$tld.'</error>');
+        }
+
+        output($this->cli->run('dig foo.test'));
+
+        output($this->lint());
     }
 }

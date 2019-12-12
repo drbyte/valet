@@ -59,6 +59,8 @@ class PhpFpm
 
     /**
      * Update the PHP FPM configuration.
+     * @TODO - Future: number the valet.sock file according to php version
+     * @TODO - Future: make the valet.sock path configurable (for better multi-user support)
      *
      * @return void
      */
@@ -92,14 +94,20 @@ class PhpFpm
         }
         $this->files->put($fpmConfigFile, $contents);
 
-        $contents = $this->files->get(__DIR__.'/../stubs/php-memory-limits.ini');
 
-        $destFile = dirname($fpmConfigFile);
-        $destFile = str_replace('/php-fpm.d', '', $destFile);
-        $destFile .= '/conf.d/php-memory-limits.ini';
-        $this->files->ensureDirExists(dirname($destFile), user());
+        // ini stubs
+        // @TODO - scan stubs dir for php-*.ini naming convention, so we can distribute more defaults easily
+        // @TODO - scan .config/valet/stubs dir if exists (ref getSiteStub() in https://github.com/laravel/valet/pull/941 )
+        $fpmConfigPath = dirname($this->fpmConfigPath());
 
-        $this->files->putAsUser($destFile, $contents);
+        foreach (['php-memory-limits.ini', 'php-error-log.ini'] as $file) {
+            $contents = $this->files->get(__DIR__ . '/../stubs/' . $file);
+            $contents = str_replace(['VALET_USER', 'VALET_HOME_PATH'], [user(), VALET_HOME_PATH], $contents);
+            $destFile = str_replace('/php-fpm.d', '', $fpmConfigPath);
+            $destFile .= '/conf.d/' . $file;
+            $this->files->ensureDirExists(dirname($destFile), user());
+            $this->files->putAsUser($destFile, $contents);
+        }
     }
 
     /**
@@ -218,5 +226,44 @@ class PhpFpm
         }
 
         return $version;
+    }
+
+    /**
+     * Check and optionally repair Valet's PHP config.
+     * @param  boolean $repair
+     */
+    function checkConfiguration($repair = false)
+    {
+        output($this->cli->runAsUser("brew list --versions | grep -E 'php(@\d\.\d)?'"));
+        output($this->cli->runAsUser('which -a php'));
+        output($this->cli->runAsUser('php -v'));
+
+        $fpmConfigPath = dirname($this->fpmConfigPath());
+        $destFile = $fpmConfigPath . '/valet-fpm.conf';
+        $this->files->exists($destFile);
+
+        /** 
+         * thinking aloud ...
+         * 
+         * @TODO - can we really test the PHP config? Or just for Valet essentials?
+         *
+        ls -al /usr/local/etc/php 
+        ls -al /usr/local/etc/php/7.4 
+        ls -al /usr/local/etc/php/7.4/php-fpm.d
+        ls -al /usr/local/etc/php/7.4/conf.d
+
+        * what about forced re-linking with homebrew, when there appear to be conflicts about which version is actually running?
+        * Concern: using "brew reinstall" leaves fragments of the recipe, named "-reinstall": do we clean this up? does it conflict with us?
+
+        * What about brew permissions? We run PHP as root, which changes file ownership, meaning brew can't do manual cleanups outside of valet
+        * and thus manually copy/pasting brew's suggested `sudo rm` command is required. 
+        *
+        * What about etc dir permissions? It's only been rare situations where this has ever been an issue, so is it worth checking? changing? mentioning?
+        sudo chown -R MYUSER:MYGROUP /usr/local/etc/php/7.3   (before installing php again)
+        */
+       
+         /*
+         * @TODO - explore optionally supporting built-in PHP version if compatible, but still updating its configuration enough for Valet to use it? ** HERE BE DRAGONS **
+         */
     }
 }
