@@ -136,6 +136,9 @@ class BrewTest extends TestCase
         $this->assertFalse(resolve(Brew::class)->installed('ngrok'));
     }
 
+    /**
+     * @dataProvider formulaNameProvider
+     */
     #[DataProvider('formulaNameProvider')]
     public function test_formula_name_strips_any_tap_prefix($input, $expected)
     {
