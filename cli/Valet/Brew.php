@@ -51,20 +51,20 @@ class Brew
 
         // should be a json response, but if not installed then "Error: No available formula ..."
         if (starts_with($result, 'Error: No')) {
-            return false;
+            return $this->hasInstalledKeg($formula);
         }
 
         $details = json_decode($result, true);
 
         if (! empty($details['formulae'])) {
-            return ! empty($details['formulae'][0]['installed']);
+            return ! empty($details['formulae'][0]['installed']) || $this->hasInstalledKeg($formula);
         }
 
         if (! empty($details['casks'])) {
             return ! is_null($details['casks'][0]['installed']);
         }
 
-        return false;
+        return $this->hasInstalledKeg($formula);
     }
 
     /**
@@ -102,7 +102,7 @@ class Brew
     {
         return collect(
             explode(PHP_EOL, $this->cli->runAsUser('brew list --formula | grep php'))
-        );
+        )->map(fn ($formula) => $this->formulaName($formula));
     }
 
     /**
@@ -477,6 +477,40 @@ class Brew
         preg_match('~\w{3,}/(php)(@?\d\.?\d)?/(\d\.\d)?([_\d\.]*)?/?\w{3,}~', $resolvedPath, $matches);
 
         return $matches;
+    }
+
+    /**
+     * Strip any tap prefix from a formula name.
+     *
+     * Homebrew lists formulae from third-party taps by their fully-qualified name,
+     * e.g. "shivammathur/php/php@8.4", while the keg, the Cellar rack and the
+     * `brew link` target all use the bare "php@8.4".
+     */
+    public function formulaName(string $formula): string
+    {
+        $formula = trim($formula);
+
+        if (($separator = strrpos($formula, '/')) !== false) {
+            $formula = substr($formula, $separator + 1);
+        }
+
+        return $formula;
+    }
+
+    /**
+     * Determine whether a keg for the given formula exists in the Cellar, regardless
+     * of the tap it was installed from.
+     *
+     * Homebrew resolves an unqualified formula name against homebrew/core first, so
+     * `brew info php@8.4` can describe the core formula as uninstalled while a keg
+     * installed from another tap (e.g. shivammathur/php) sits in the Cellar under
+     * the same rack name.
+     */
+    public function hasInstalledKeg(string $formula): bool
+    {
+        $rack = BREW_PREFIX.'/Cellar/'.$this->formulaName($formula);
+
+        return $this->files->isDir($rack) && ! empty($this->files->scandir($rack));
     }
 
     /**
