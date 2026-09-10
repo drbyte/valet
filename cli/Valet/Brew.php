@@ -47,24 +47,32 @@ class Brew
      */
     public function installed(string $formula): bool
     {
+        return $this->hasInstalledFormulaOrCask($formula) || $this->hasInstalledKeg($formula);
+    }
+
+    /**
+     * Determine whether Homebrew itself reports the given formula or cask as installed.
+     */
+    public function hasInstalledFormulaOrCask(string $formula): bool
+    {
         $result = $this->cli->runAsUser("brew info $formula --json=v2");
 
         // should be a json response, but if not installed then "Error: No available formula ..."
         if (starts_with($result, 'Error: No')) {
-            return $this->hasInstalledKeg($formula);
+            return false;
         }
 
         $details = json_decode($result, true);
 
         if (! empty($details['formulae'])) {
-            return ! empty($details['formulae'][0]['installed']) || $this->hasInstalledKeg($formula);
+            return ! empty($details['formulae'][0]['installed']);
         }
 
         if (! empty($details['casks'])) {
             return ! is_null($details['casks'][0]['installed']);
         }
 
-        return $this->hasInstalledKeg($formula);
+        return false;
     }
 
     /**

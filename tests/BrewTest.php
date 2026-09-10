@@ -122,10 +122,10 @@ class BrewTest extends TestCase
         $this->assertFalse(resolve(Brew::class)->installed('php@8.4'));
     }
 
-    public function test_installed_does_not_fall_back_to_the_cellar_for_casks()
+    public function test_installed_returns_false_for_a_cask_that_is_not_installed()
     {
         $files = Mockery::mock(Filesystem::class);
-        $files->shouldNotReceive('isDir');
+        $files->shouldReceive('isDir')->with(BREW_PREFIX.'/Cellar/ngrok')->andReturn(false);
         swap(Filesystem::class, $files);
 
         $cli = Mockery::mock(CommandLine::class);
@@ -134,6 +134,20 @@ class BrewTest extends TestCase
         swap(CommandLine::class, $cli);
 
         $this->assertFalse(resolve(Brew::class)->installed('ngrok'));
+    }
+
+    public function test_installed_skips_the_cellar_check_when_brew_already_reports_it_installed()
+    {
+        $files = Mockery::mock(Filesystem::class);
+        $files->shouldNotReceive('isDir');
+        swap(Filesystem::class, $files);
+
+        $cli = Mockery::mock(CommandLine::class);
+        $cli->shouldReceive('runAsUser')->once()->with('brew info php@8.2 --json=v2')
+            ->andReturn('{"formulae":[{"name":"php@8.2","full_name":"php@8.2","aliases":[],"versioned_formulae":[],"versions":{"stable":"8.2.5"},"installed":[{"version":"8.2.5"}]}]}');
+        swap(CommandLine::class, $cli);
+
+        $this->assertTrue(resolve(Brew::class)->installed('php@8.2'));
     }
 
     /**
